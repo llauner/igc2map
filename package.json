@@ -1,0 +1,20 @@
+{
+  "name": "igc2map",
+  "version": "0.1.0",
+  "description": "Shows IGC files on a map",
+  "private": true,
+  "main": "src/server/index.js",
+  "scripts": {
+    "start": "node src/server/index.js",
+    "lint": "node -e \"console.log('lint: no rules configured')\""
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "fast-glob": "^3.3.3",
+    "igc-parser": "^2.0.0",
+    "leaflet": "^1.9.4"
+  }
+}
