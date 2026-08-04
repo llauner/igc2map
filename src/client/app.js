@@ -13,6 +13,49 @@ const colorPalette = [
   "#334155",
 ];
 
+function buildBaseLayers() {
+  const basic = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+    maxZoom: 20,
+    subdomains: "abcd",
+    attribution: "&copy; OpenStreetMap contributors, &copy; CARTO",
+  });
+
+  const openStreetMap = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  });
+
+  const outdoors = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
+    {
+      maxZoom: 19,
+      attribution: "Tiles &copy; Esri",
+    },
+  );
+
+  const terrain = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+    maxZoom: 17,
+    attribution:
+      "Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap (CC-BY-SA)",
+  });
+
+  const satellite = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    {
+      maxZoom: 19,
+      attribution: "Tiles &copy; Esri",
+    },
+  );
+
+  return {
+    "Basic (Carto Positron)": basic,
+    "Street (OpenStreetMap)": openStreetMap,
+    "Outdoors (Topo)": outdoors,
+    "Terrain (OpenTopoMap)": terrain,
+    "Satellite (Esri)": satellite,
+  };
+}
+
 function setSummary(source) {
   const summary = document.getElementById("source-summary");
   summary.innerHTML = "";
@@ -52,7 +95,51 @@ function setErrors(errors) {
   }
 }
 
+let allFlights = [];
+let allLayers = [];
+let selectedFlightId = null;
+
+function resetAllTracks() {
+  allLayers.forEach((layer) => layer.addTo(map));
+  selectedFlightId = null;
+  document.getElementById("selected-track-section").style.display = "none";
+  document.getElementById("selected-track-info").innerHTML = "";
+}
+
+function showOnlyFlight(flightId) {
+  selectedFlightId = flightId;
+  const flight = allFlights.find((f) => f.id === flightId);
+  if (!flight) return;
+
+  allLayers.forEach((layer) => map.removeLayer(layer));
+  const selectedLayer = allLayers[allFlights.indexOf(flight)];
+  selectedLayer.addTo(map);
+  selectedLayer.bringToFront();
+  selectedLayer.getBounds().isValid() &&
+    map.fitBounds(selectedLayer.getBounds(), { padding: [18, 18] });
+
+  document.getElementById("selected-track-section").style.display = "block";
+  const info = document.getElementById("selected-track-info");
+  info.innerHTML = "";
+  const pairs = [
+    ["File", flight.fileName],
+    ["Date", flight.date || "Unknown"],
+    ["Pilot", flight.pilot || "Unknown"],
+    ["Glider", flight.gliderType || "Unknown"],
+    ["Points", String(flight.stats.pointCount)],
+  ];
+  for (const [key, value] of pairs) {
+    const dt = document.createElement("dt");
+    dt.textContent = key;
+    const dd = document.createElement("dd");
+    dd.textContent = value;
+    info.append(dt, dd);
+  }
+}
+
 function drawTracks(flights) {
+  allFlights = flights;
+  allLayers = [];
   const bounds = [];
 
   flights.forEach((flight, index) => {
@@ -66,13 +153,17 @@ function drawTracks(flights) {
     });
 
     layer.bindTooltip(`${flight.fileName} (${flight.stats.pointCount} points)`);
+    layer.on("click", () => showOnlyFlight(flight.id));
     layer.addTo(map);
+    allLayers.push(layer);
 
     const layerBounds = layer.getBounds();
     if (layerBounds.isValid()) {
       bounds.push(layerBounds);
     }
   });
+
+  document.getElementById("reset-button").addEventListener("click", resetAllTracks);
 
   if (bounds.length > 0) {
     const aggregate = bounds[0].extend(bounds[0]);
@@ -84,10 +175,11 @@ function drawTracks(flights) {
 }
 
 async function loadAndRender() {
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors",
-  }).addTo(map);
+  const baseLayers = buildBaseLayers();
+  const defaultBaseLayerName = "Street (OpenStreetMap)";
+  baseLayers[defaultBaseLayerName].addTo(map);
+
+  L.control.layers(baseLayers, {}, { collapsed: false, position: "topright" }).addTo(map);
 
   try {
     const response = await fetch("/api/flights");
