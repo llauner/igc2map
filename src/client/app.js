@@ -98,6 +98,76 @@ function setErrors(errors) {
 let allFlights = [];
 let allLayers = [];
 let selectedFlightId = null;
+let currentCalendarMonth = new Date();
+const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function buildCalendar() {
+  const year = currentCalendarMonth.getFullYear();
+  const month = currentCalendarMonth.getMonth();
+
+  const monthYear = currentCalendarMonth.toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
+  document.getElementById("calendar-month-year").textContent = monthYear;
+
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDate = new Date(firstDay);
+  startDate.setDate(startDate.getDate() - firstDay.getDay());
+
+  const availableDates = new Set();
+  allFlights.forEach((flight) => {
+    if (flight.date) {
+      const d = new Date(flight.date);
+      availableDates.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
+    }
+  });
+
+  const grid = document.getElementById("calendar-grid");
+  grid.innerHTML = "";
+
+  daysOfWeek.forEach((day) => {
+    const header = document.createElement("div");
+    header.className = "calendar-day-header";
+    header.textContent = day;
+    grid.append(header);
+  });
+
+  for (let i = 0; i < 42; i++) {
+    const cell = document.createElement("div");
+    const cellDate = new Date(startDate);
+    cellDate.setDate(cellDate.getDate() + i);
+
+    const isCurrentMonth = cellDate.getMonth() === month;
+    const dateKey = `${cellDate.getFullYear()}-${cellDate.getMonth()}-${cellDate.getDate()}`;
+    const hasFlights = availableDates.has(dateKey);
+
+    cell.className = "calendar-cell";
+    if (!isCurrentMonth) cell.classList.add("calendar-other-month");
+    if (hasFlights) cell.classList.add("calendar-has-flights");
+
+    cell.textContent = cellDate.getDate();
+
+    if (hasFlights) {
+      cell.addEventListener("click", () => {
+        const flightsOnDate = allFlights.filter(
+          (f) => f.date && new Date(f.date).toDateString() === cellDate.toDateString(),
+        );
+        if (flightsOnDate.length > 0) {
+          showOnlyFlight(flightsOnDate[0].id);
+        }
+      });
+      cell.classList.add("calendar-selectable");
+    }
+
+    grid.append(cell);
+  }
+}
+
+function updateCalendar() {
+  buildCalendar();
+}
 
 function resetAllTracks() {
   allLayers.forEach((layer) => layer.addTo(map));
@@ -141,6 +211,7 @@ function drawTracks(flights) {
   allFlights = flights;
   allLayers = [];
   const bounds = [];
+  updateCalendar();
 
   flights.forEach((flight, index) => {
     const color = colorPalette[index % colorPalette.length];
@@ -164,6 +235,14 @@ function drawTracks(flights) {
   });
 
   document.getElementById("reset-button").addEventListener("click", resetAllTracks);
+  document.getElementById("prev-month").addEventListener("click", () => {
+    currentCalendarMonth.setMonth(currentCalendarMonth.getMonth() - 1);
+    buildCalendar();
+  });
+  document.getElementById("next-month").addEventListener("click", () => {
+    currentCalendarMonth.setMonth(currentCalendarMonth.getMonth() + 1);
+    buildCalendar();
+  });
 
   if (bounds.length > 0) {
     const aggregate = bounds[0].extend(bounds[0]);
