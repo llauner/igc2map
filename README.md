@@ -99,3 +99,12 @@ Contract highlights:
 	* Ensure PORT is a number between 1 and 65535
 * Directory path issues on Windows:
 	* Use an absolute path for IGC_DIR, for example C:\\llauner\\src\\igc2map\\data\\igc
+
+## License
+
+This project is licensed under the **MIT License with Commons Clause**.
+
+* **Free to use:** You can use, modify, and distribute the software freely for non-commercial purposes
+* **Commercial use restricted:** To use this software commercially (including as part of a paid service or commercial product), you must obtain explicit permission from the authors
+
+See [LICENSE](LICENSE) and [COMMONS-CLAUSE.md](COMMONS-CLAUSE.md) for details.
