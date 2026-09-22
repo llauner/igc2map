@@ -177,6 +177,30 @@ body {
   transform: scale(0.95);
 }
 
+.view-mode-toggle {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.view-mode-toggle input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+.view-mode-toggle label {
+  margin: 0;
+  cursor: pointer;
+  font-size: 0.95rem;
+  user-select: none;
+}
+
+.view-mode-toggle input[type="radio"]:checked + label {
+  font-weight: 600;
+  color: var(--accent);
+}
+
 .map-wrap {
   padding: 0.8rem;
 }

@@ -1,5 +1,7 @@
 const map = L.map("map", {
   zoomControl: true,
+  zoomDelta: 0.5,
+  zoomSnap: 0.5,
 });
 
 const colorPalette = [
@@ -99,6 +101,8 @@ let allFlights = [];
 let allLayers = [];
 let selectedFlightId = null;
 let currentCalendarMonth = new Date();
+let heatmapLayer = null;
+let viewMode = "tracks";
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function buildCalendar() {
@@ -167,6 +171,52 @@ function buildCalendar() {
 
 function updateCalendar() {
   buildCalendar();
+}
+
+function buildHeatmap() {
+  if (heatmapLayer) {
+    map.removeLayer(heatmapLayer);
+    heatmapLayer = null;
+  }
+
+  const points = [];
+  allFlights.forEach((flight) => {
+    if (flight.track && flight.track.geometry && flight.track.geometry.coordinates) {
+      const coords = flight.track.geometry.coordinates;
+      coords.forEach(([lon, lat]) => {
+        if (Number.isFinite(lon) && Number.isFinite(lat)) {
+          points.push([lat, lon, 1]);
+        }
+      });
+    }
+  });
+
+  if (points.length > 0) {
+    heatmapLayer = L.heatLayer(points, {
+      radius: 15,
+      blur: 3,
+      max: 10,
+      maxZoom: 18,
+      minOpacity: 0.30,
+      gradient: { 0.0: "#2455d6", 0.15: "#16b8d4", 0.3: "#168fba", 0.5: "#7a3fc6", 0.7: "#d32f9a", 0.85: "#c27754", 1.0: "#e31b23" },
+    });
+    heatmapLayer.addTo(map);
+  }
+}
+
+function switchViewMode(mode) {
+  viewMode = mode;
+
+  if (mode === "heatmap") {
+    allLayers.forEach((layer) => map.removeLayer(layer));
+    buildHeatmap();
+  } else {
+    if (heatmapLayer) {
+      map.removeLayer(heatmapLayer);
+      heatmapLayer = null;
+    }
+    allLayers.forEach((layer) => layer.addTo(map));
+  }
 }
 
 function resetAllTracks() {
@@ -242,6 +292,10 @@ function drawTracks(flights) {
   document.getElementById("next-month").addEventListener("click", () => {
     currentCalendarMonth.setMonth(currentCalendarMonth.getMonth() + 1);
     buildCalendar();
+  });
+
+  document.querySelectorAll('input[name="view-mode"]').forEach((radio) => {
+    radio.addEventListener("change", (e) => switchViewMode(e.target.value));
   });
 
   if (bounds.length > 0) {

@@ -16,6 +16,15 @@
     <main class="layout">
       <aside class="panel">
         <h1>IGC Track Viewer</h1>
+        <section id="view-mode-section">
+          <h2>View Mode</h2>
+          <div class="view-mode-toggle">
+            <input type="radio" id="view-tracks" name="view-mode" value="tracks" checked />
+            <label for="view-tracks">Tracks</label>
+            <input type="radio" id="view-heatmap" name="view-mode" value="heatmap" />
+            <label for="view-heatmap">Heatmap</label>
+          </div>
+        </section>
         <section id="calendar-section">
           <h2>Select Date</h2>
           <div class="calendar-container">
@@ -51,6 +60,7 @@
       integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
       crossorigin=""
     ></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>
