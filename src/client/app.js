@@ -98,12 +98,79 @@ function setErrors(errors) {
 }
 
 let allFlights = [];
+let airspaces = [];
 let allLayers = [];
 let selectedFlightId = null;
 let currentCalendarMonth = new Date();
 let heatmapLayer = null;
 let viewMode = "tracks";
+let hideAirspacePoints = false;
+const hiddenPointCache = new Map();
 const daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function isPointInsidePolygon(point, polygon) {
+  const [longitude, latitude] = point;
+  let inside = false;
+
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const [currentLongitude, currentLatitude] = polygon[index];
+    const [previousLongitude, previousLatitude] = polygon[previous];
+    const intersects =
+      currentLatitude > latitude !== previousLatitude > latitude &&
+      longitude <
+        ((previousLongitude - currentLongitude) * (latitude - currentLatitude)) /
+          (previousLatitude - currentLatitude) +
+          currentLongitude;
+    if (intersects) inside = !inside;
+  }
+
+  return inside;
+}
+
+function getHiddenPointFlags(flight) {
+  const cachedFlags = hiddenPointCache.get(flight.id);
+  if (cachedFlags) return cachedFlags;
+
+  const flags = flight.track.geometry.coordinates.map((point) =>
+    airspaces.some((airspace) =>
+      isPointInsidePolygon(point, airspace.geometry.coordinates[0]),
+    ),
+  );
+  hiddenPointCache.set(flight.id, flags);
+  return flags;
+}
+
+function getVisibleCoordinates(flight) {
+  if (!hideAirspacePoints) return flight.track.geometry.coordinates;
+
+  const hiddenFlags = getHiddenPointFlags(flight);
+  return flight.track.geometry.coordinates.filter((_point, index) => !hiddenFlags[index]);
+}
+
+function buildVisibleTrack(flight) {
+  if (!hideAirspacePoints) return flight.track;
+
+  const hiddenFlags = getHiddenPointFlags(flight);
+  const segments = [];
+  let currentSegment = [];
+
+  flight.track.geometry.coordinates.forEach((point, index) => {
+    if (hiddenFlags[index]) {
+      if (currentSegment.length >= 2) segments.push(currentSegment);
+      currentSegment = [];
+      return;
+    }
+    currentSegment.push(point);
+  });
+
+  if (currentSegment.length >= 2) segments.push(currentSegment);
+
+  if (segments.length === 1) {
+    return { ...flight.track, geometry: { type: "LineString", coordinates: segments[0] } };
+  }
+
+  return { ...flight.track, geometry: { type: "MultiLineString", coordinates: segments } };
+}
 
 function buildCalendar() {
   const year = currentCalendarMonth.getFullYear();
@@ -182,7 +249,7 @@ function buildHeatmap() {
   const points = [];
   allFlights.forEach((flight) => {
     if (flight.track && flight.track.geometry && flight.track.geometry.coordinates) {
-      const coords = flight.track.geometry.coordinates;
+      const coords = getVisibleCoordinates(flight);
       coords.forEach(([lon, lat]) => {
         if (Number.isFinite(lon) && Number.isFinite(lat)) {
           points.push([lat, lon, 1]);
@@ -220,10 +287,55 @@ function switchViewMode(mode) {
 }
 
 function resetAllTracks() {
+  if (viewMode === "heatmap") {
+    switchViewMode("tracks");
+  }
   allLayers.forEach((layer) => layer.addTo(map));
   selectedFlightId = null;
   document.getElementById("selected-track-section").style.display = "none";
   document.getElementById("selected-track-info").innerHTML = "";
+}
+
+function renderLayers(fitMap = false) {
+  allLayers.forEach((layer) => map.removeLayer(layer));
+  allLayers = [];
+  if (heatmapLayer) {
+    map.removeLayer(heatmapLayer);
+    heatmapLayer = null;
+  }
+
+  const bounds = [];
+  allFlights.forEach((flight, index) => {
+    const color = colorPalette[index % colorPalette.length];
+    const layer = L.geoJSON(buildVisibleTrack(flight), {
+      style: {
+        color,
+        weight: 3,
+        opacity: 0.85,
+      },
+    });
+
+    layer.bindTooltip(`${flight.fileName} (${flight.stats.pointCount} points)`);
+    layer.on("click", () => showOnlyFlight(flight.id));
+    allLayers.push(layer);
+
+    const layerBounds = layer.getBounds();
+    if (layerBounds.isValid()) bounds.push(layerBounds);
+  });
+
+  if (viewMode === "heatmap") {
+    buildHeatmap();
+  } else {
+    allLayers.forEach((layer) => layer.addTo(map));
+  }
+
+  if (fitMap && bounds.length > 0) {
+    const aggregate = bounds[0].extend(bounds[0]);
+    bounds.slice(1).forEach((bound) => aggregate.extend(bound));
+    map.fitBounds(aggregate, { padding: [18, 18] });
+  } else if (fitMap) {
+    map.setView([48.85, 2.35], 5);
+  }
 }
 
 function showOnlyFlight(flightId) {
@@ -259,30 +371,8 @@ function showOnlyFlight(flightId) {
 
 function drawTracks(flights) {
   allFlights = flights;
-  allLayers = [];
-  const bounds = [];
   updateCalendar();
-
-  flights.forEach((flight, index) => {
-    const color = colorPalette[index % colorPalette.length];
-    const layer = L.geoJSON(flight.track, {
-      style: {
-        color,
-        weight: 3,
-        opacity: 0.85,
-      },
-    });
-
-    layer.bindTooltip(`${flight.fileName} (${flight.stats.pointCount} points)`);
-    layer.on("click", () => showOnlyFlight(flight.id));
-    layer.addTo(map);
-    allLayers.push(layer);
-
-    const layerBounds = layer.getBounds();
-    if (layerBounds.isValid()) {
-      bounds.push(layerBounds);
-    }
-  });
+  renderLayers(true);
 
   document.getElementById("reset-button").addEventListener("click", resetAllTracks);
   document.getElementById("prev-month").addEventListener("click", () => {
@@ -298,13 +388,33 @@ function drawTracks(flights) {
     radio.addEventListener("change", (e) => switchViewMode(e.target.value));
   });
 
-  if (bounds.length > 0) {
-    const aggregate = bounds[0].extend(bounds[0]);
-    bounds.slice(1).forEach((b) => aggregate.extend(b));
-    map.fitBounds(aggregate, { padding: [18, 18] });
-  } else {
-    map.setView([48.85, 2.35], 5);
-  }
+  document.getElementById("hide-airspace-points").addEventListener("change", (event) => {
+    hideAirspacePoints = event.target.checked;
+    selectedFlightId = null;
+    document.getElementById("selected-track-section").style.display = "none";
+    const busyOverlay = document.getElementById("busy-overlay");
+    const busyStartedAt = performance.now();
+    const clearBusyState = () => {
+      busyOverlay.classList.remove("visible");
+      map.getContainer().style.removeProperty("cursor");
+      document.documentElement.classList.remove("computing");
+      document.body.classList.remove("computing");
+    };
+
+    busyOverlay.classList.add("visible");
+    document.documentElement.classList.add("computing");
+    document.body.classList.add("computing");
+    map.getContainer().style.setProperty("cursor", "wait", "important");
+
+    setTimeout(() => {
+      try {
+        renderLayers();
+      } finally {
+        const remainingBusyTime = Math.max(0, 150 - (performance.now() - busyStartedAt));
+        setTimeout(clearBusyState, remainingBusyTime);
+      }
+    }, 0);
+  });
 }
 
 async function loadAndRender() {
@@ -321,6 +431,8 @@ async function loadAndRender() {
     }
 
     const data = await response.json();
+    airspaces = data.airspaces || [];
+    hiddenPointCache.clear();
     setSummary(data.source);
     setErrors(data.errors || []);
     drawTracks(data.flights || []);

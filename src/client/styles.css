@@ -18,6 +18,25 @@ body {
   background: radial-gradient(circle at top left, #fffbf4 0%, #ede2d1 55%, #e8dbc6 100%);
 }
 
+html.computing,
+html.computing *,
+body.computing,
+body.computing * {
+  cursor: wait !important;
+}
+
+#busy-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  cursor: wait !important;
+}
+
+#busy-overlay.visible {
+  display: block;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 320px 1fr;
@@ -199,6 +218,20 @@ body {
 .view-mode-toggle input[type="radio"]:checked + label {
   font-weight: 600;
   color: var(--accent);
+}
+
+.checkbox-option {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.checkbox-option input {
+  margin: 0.2rem 0 0;
+  cursor: pointer;
 }
 
 .map-wrap {

@@ -1,5 +1,6 @@
 const express = require("express");
 const { loadFlights } = require("../services/load-flights");
+const { loadAirspaces } = require("../services/load-airspaces");
 
 function createApiRouter(config) {
   const router = express.Router();
@@ -30,8 +31,11 @@ function createApiRouter(config) {
 
   router.get("/flights", async (_req, res) => {
     try {
-      const data = await loadFlights(config.igcDirectory);
-      res.json(data);
+      const [data, airspaces] = await Promise.all([
+        loadFlights(config.igcDirectory),
+        loadAirspaces(config.airspaceFile),
+      ]);
+      res.json({ ...data, airspaces });
     } catch (error) {
       res.status(500).json({
         source: {

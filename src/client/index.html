@@ -25,6 +25,13 @@
             <label for="view-heatmap">Heatmap</label>
           </div>
         </section>
+        <section id="airspace-section">
+          <h2>Airspace Filtering</h2>
+          <label class="checkbox-option" for="hide-airspace-points">
+            <input type="checkbox" id="hide-airspace-points" />
+            Hide points inside Vercors and Vanoise
+          </label>
+        </section>
         <section id="calendar-section">
           <h2>Select Date</h2>
           <div class="calendar-container">
@@ -54,6 +61,7 @@
         <div id="map" class="map" aria-label="Map of IGC tracks"></div>
       </section>
     </main>
+    <div id="busy-overlay" aria-hidden="true"></div>
 
     <script
       src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
